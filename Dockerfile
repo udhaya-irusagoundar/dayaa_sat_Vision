@@ -1,39 +1,36 @@
 FROM php:8.2-apache
  
-# Install system dependencies
 RUN apt-get update && apt-get install -y \
     unzip git curl libpng-dev libonig-dev libxml2-dev zip \
 && docker-php-ext-install pdo pdo_mysql mbstring exif pcntl bcmath gd
  
-# Enable Apache rewrite
+# Enable rewrite
 RUN a2enmod rewrite
  
-# Set working directory
 WORKDIR /var/www/html
  
-# Copy project files
 COPY . .
  
-# Extract vendor (FASTER than composer install)
 RUN unzip vendor.zip -d /var/www/html/ && rm vendor.zip
  
-# Set Apache document root to public
+# 🔥 IMPORTANT FIX STARTS HERE
+ 
 ENV APACHE_DOCUMENT_ROOT /var/www/html/public
  
-RUN sed -ri -e 's!/var/www/html!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/sites-available/*.conf \
-&& sed -ri -e 's!/var/www/!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/apache2.conf
-
-# Allow access
-RUN echo "<Directory /var/www/html/public>\n\
-    AllowOverride All\n\
-    Require all granted\n\
-</Directory>" >> /etc/apache2/apache2.conf
+RUN sed -ri -e 's!/var/www/html!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/sites-available/000-default.conf
  
-# Set permissions (CRITICAL for Laravel)
+# Enable .htaccess override properly
+RUN echo "<Directory /var/www/html/public>
+    AllowOverride All
+    Require all granted
+</Directory>" > /etc/apache2/conf-available/laravel.conf \
+&& a2enconf laravel
+ 
+# 🔥 IMPORTANT FIX ENDS HERE
+ 
 RUN chown -R www-data:www-data /var/www/html \
 && chmod -R 775 storage bootstrap/cache
  
-# Expose port
 EXPOSE 80
  
 CMD ["apache2-foreground"]
